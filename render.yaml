@@ -1,0 +1,15 @@
+# Render Blueprint - FREE Web Service
+# render.com e New > Blueprint diye ei repo select korlei hobe
+# Token Render dashboard e Environment Variable e dite hobe, ekhane likhbe na
+services:
+  - type: web
+    name: teamformatbot
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn bot_webhook:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: PYTHON_VERSION
+        value: 3.12.0
