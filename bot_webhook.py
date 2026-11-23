@@ -110,9 +110,8 @@ def handle_update(update):
 def poll_loop():
     """Background polling fallback. Webhook na thakle getUpdates diye
     message ane. Webhook set thakle Telegram 409 dey, tokhon wait kore.
-    429 pele retry_after + 10 second wait korte hoy - tar age try korle
-    Telegram abar 429 diye window ta reset kore dey, tai fixed 10s
-    sleep ekhane cholbe na."""
+    429 pele 10 minute wait korte hoy - tar age try korle Telegram
+    abar 429 diye ban ta reset kore dey."""
     offset = 0
     while True:
         try:
@@ -126,8 +125,13 @@ def poll_loop():
                 if isinstance(result, dict) and result.get("error_code") == 409:
                     time.sleep(60)
                     continue
-                # 429 / timeout - Telegram je retry_after dilo tar cheye
-                # beshi wait kore tarpor try, nahole ban reset hote thake
+                # 429 / timeout - Telegram je retry_after dilo, seta 32s
+                # holeo ban ta asole aro lomba thakte pare, ar prottek
+                # call ban ta ke abar reset kore dey. Tai ekhane 10
+                # minute wait kore tarpor try - er moddhe ban clear
+                # howar sujog pabe. Ekbar success hole polling abar
+                # normal gotite cholbe.
+                wait = 600
                 retry_after = 0
                 if isinstance(result, dict):
                     params = result.get("parameters") or {}
@@ -135,7 +139,6 @@ def poll_loop():
                         retry_after = int(params.get("retry_after") or 0)
                     except Exception:
                         retry_after = 0
-                wait = max(retry_after + 10, 15)
                 print(f"polling retry in {wait}s (retry_after={retry_after})", flush=True)
                 time.sleep(wait)
                 continue
