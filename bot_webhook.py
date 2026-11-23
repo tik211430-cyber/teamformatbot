@@ -109,7 +109,10 @@ def handle_update(update):
 
 def poll_loop():
     """Background polling fallback. Webhook na thakle getUpdates diye
-    message ane. Webhook set thakle Telegram 409 dey, tokhon wait kore."""
+    message ane. Webhook set thakle Telegram 409 dey, tokhon wait kore.
+    429 pele retry_after + 10 second wait korte hoy - tar age try korle
+    Telegram abar 429 diye window ta reset kore dey, tai fixed 10s
+    sleep ekhane cholbe na."""
     offset = 0
     while True:
         try:
@@ -123,8 +126,18 @@ def poll_loop():
                 if isinstance(result, dict) and result.get("error_code") == 409:
                     time.sleep(60)
                     continue
-                # 429 / timeout - ektu wait kore abar try
-                time.sleep(10)
+                # 429 / timeout - Telegram je retry_after dilo tar cheye
+                # beshi wait kore tarpor try, nahole ban reset hote thake
+                retry_after = 0
+                if isinstance(result, dict):
+                    params = result.get("parameters") or {}
+                    try:
+                        retry_after = int(params.get("retry_after") or 0)
+                    except Exception:
+                        retry_after = 0
+                wait = max(retry_after + 10, 15)
+                print(f"polling retry in {wait}s (retry_after={retry_after})", flush=True)
+                time.sleep(wait)
                 continue
             for update in result.get("result", []):
                 offset = max(offset, update.get("update_id", 0) + 1)
@@ -134,7 +147,7 @@ def poll_loop():
                     print(f"handle_update error: {e!r}", flush=True)
         except Exception as e:
             print(f"poll_loop error: {e!r}", flush=True)
-            time.sleep(10)
+            time.sleep(15)
 
 
 # TOKEN thakle polling thread chalu hobe (Render e). Local test e TOKEN
