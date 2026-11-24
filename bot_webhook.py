@@ -104,7 +104,8 @@ def handle_update(update):
         )
         return
     formatted = format_teams(teams)
-    send_message(chat_id, f"```\n{formatted}```")
+    # Plain text - upore kono cinho lagbe na
+    send_message(chat_id, formatted)
 
 
 def poll_loop():

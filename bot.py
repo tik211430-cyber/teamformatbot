@@ -166,8 +166,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     formatted = format_teams(teams)
-    # Code block e dile copy korte sohoj hobe
-    await update.message.reply_text(f"```\n{formatted}```", parse_mode="Markdown")
+    # Plain text - upore kono cinho lagbe na
+    await update.message.reply_text(formatted)
 
 
 def main():
