@@ -20,6 +20,7 @@ Rules:
 
 import os
 import re
+import difflib
 import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
@@ -33,6 +34,66 @@ TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 PAYMENT_LABELS = ("bkash", "nagad", "rocket", "payment", "contact", "phone", "mobile", "number")
 
 
+def _close(word: str, target: str, threshold: float = 0.7) -> bool:
+    """Banan vul holeo mil khay kina - jemon 'tem' ~ 'team',
+    'plaer' ~ 'player', 'nmae' ~ 'name'."""
+    word = word.lower()
+    if word == target:
+        return True
+    return difflib.SequenceMatcher(None, word, target).ratio() >= threshold
+
+
+def _label_words(label: str):
+    return re.findall(r'[a-z]+', label.lower())
+
+
+def _is_team_label(label: str) -> bool:
+    ws = _label_words(label)
+    if any(_close(w, "team", 0.7) for w in ws):
+        return True
+    joined = "".join(ws)
+    return _close(joined, "team", 0.7) or _close(joined, "teamname", 0.7)
+
+
+def _is_player_label(label: str) -> bool:
+    ws = _label_words(label)
+    if any(_close(w, "player", 0.7) or _close(w, "ign", 0.6) for w in ws):
+        return True
+    joined = "".join(ws)
+    return (_close(joined, "player", 0.7) or _close(joined, "playername", 0.7)
+            or _close(joined, "ignname", 0.6) or _close(joined, "ign", 0.6))
+
+
+def _is_name_label(label: str) -> bool:
+    return any(_close(w, "name", 0.7) for w in _label_words(label))
+
+
+def _strip_leading_label(line: str, targets) -> str:
+    """Line er shurur label word gula (banan vul holeo) soray, value rakhe.
+    Jemon 'TEM NMAE EXAMPLE1' -> 'EXAMPLE1', 'PLAER DSHDH' -> 'DSHDH'.
+    Naam jodi label er cheye onek boro hoy (jemon IGNIS) ta sorano hobe na."""
+    parts = line.split()
+    i = 0
+    while i < len(parts):
+        word = re.sub(r'[^a-zA-Z]', '', parts[i]).lower()
+        if not word:
+            i += 1
+            continue
+        if word.isdigit():
+            i += 1
+            continue
+        hit = False
+        for t in targets:
+            thresh = 0.6 if t == "ign" else 0.7
+            if len(word) <= len(t) + 1 and _close(word, t, thresh):
+                hit = True
+                break
+        if not hit:
+            break
+        i += 1
+    return " ".join(parts[i:]).strip(" :-")
+
+
 def is_phone_number(value: str) -> bool:
     """Shudhu ekta phone/payment number kina - jemon 01751688757.
     Naam er sathe number thakle (NFY10) eta False dibe."""
@@ -44,15 +105,15 @@ def is_phone_number(value: str) -> bool:
 
 def is_payment_line(line_noprefix: str) -> bool:
     """bKash / Nagad / Rocket / contact number er line kina.
-    TEAM / PLAYER / IGN thakle eta payment line na."""
-    low = line_noprefix.lower()
-    if any(k in low for k in ("team", "player", "ign")):
+    TEAM / PLAYER / IGN thakle eta payment line na - banan vul holeo."""
+    if _is_team_label(line_noprefix) or _is_player_label(line_noprefix):
         return False
     if ":" in line_noprefix:
-        label = low.split(":", 1)[0].strip()
-        return any(k in label for k in PAYMENT_LABELS)
+        label = line_noprefix.split(":", 1)[0].strip()
+        return any(_close(w, k, 0.7) for w in _label_words(label) for k in PAYMENT_LABELS)
     # Colon chara line - "BKASH 0175..." er moto, kintu "ROCKET X"
     # er moto naam hole skip korbo na
+    low = line_noprefix.lower()
     for k in ("bkash", "nagad", "rocket", "payment", "contact", "phone", "mobile"):
         if low.startswith(k):
             rest = low[len(k):].strip()
@@ -94,14 +155,17 @@ def parse_teams(text: str):
         low = line.lower()
         # leading "1." / "2)" sorano check er jonno
         line_noprefix = re.sub(r'^\d+\s*[\.\)]\s*', '', line).strip()
-        low_noprefix = line_noprefix.lower()
+        # Label check sudhu colon er ager ongsho diye - value te
+        # "team" / "player" thakleo vul kore team/player dhorbe na.
+        # Colon na thakle pura line tai label hisebe check hobe.
+        label = line_noprefix.split(":", 1)[0] if ":" in line_noprefix else line_noprefix
 
-        # 1) TEAM NAME line
-        if "team" in low_noprefix:
+        # 1) TEAM NAME line - banan vul holeo (TEM / TAEM / TEEM)
+        if _is_team_label(label):
             value = extract_after_colon(line_noprefix)
             if not value:
                 # "TEAM NAME EXAMPLE1" - colon chara
-                value = re.sub(r'(?i)team\s*name\s*', '', line_noprefix).strip()
+                value = _strip_leading_label(line_noprefix, ("team", "name"))
             new_team(value)
             continue
 
@@ -109,12 +173,13 @@ def parse_teams(text: str):
         if is_payment_line(line_noprefix):
             continue
 
-        # 2) Player line - IGN / PLAYER / NAME keyword thakle
-        if any(k in low_noprefix for k in ["ign", "player"]):
+        # 2) Player line - IGN / PLAYER / NAME keyword thakle,
+        # banan vul holeo (PLAER / PALYER / IGNN / NMAE)
+        if _is_player_label(label) or _is_name_label(label):
             value = extract_after_colon(line_noprefix)
             if not value:
                 # "IGN DSHDH" / "PLAYER FHHF" - colon chara
-                value = re.sub(r'(?i)^(ign|player)(\s*name)?\s*\d*\s*[:\-]?\s*', '', line_noprefix).strip()
+                value = _strip_leading_label(line_noprefix, ("ign", "player", "name"))
             if not value or is_phone_number(value):
                 continue  # khali IGN 2: skip, number o player na
             if current is None:
@@ -122,16 +187,7 @@ def parse_teams(text: str):
             current["players"].append(value)
             continue
 
-        # 3) "NAME : X" - shudhu NAME lekha thakle player dhorbo
-        if re.match(r'(?i)^name\s*\d*\s*:', line_noprefix):
-            value = extract_after_colon(line_noprefix)
-            if value and not is_phone_number(value):
-                if current is None:
-                    new_team("")
-                current["players"].append(value)
-            continue
-
-        # 4) Colon ache kintu label chini na - value tai player
+        # 3) Colon ache kintu label chini na - value tai player
         if ":" in line_noprefix:
             value = extract_after_colon(line_noprefix)
             if value and not is_phone_number(value):
@@ -180,7 +236,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "PLAYER NAME 3 : FHHF\n"
         "PLAYER NAME 4 : \n"
         "PLAYER NAME 5 : \n\n"
-        "IGN / PLAYER — jekono label dilei cholbe, khali line skip hobe."
+        "IGN / PLAYER — jekono label dilei cholbe, khali line skip hobe.\n\n"
+        "Banan vul holeo cholbe — TEAM / PLAYER / IGN banan vul likhleo bot dhore felbe, ar amader format ei sajabe."
     )
 
 
