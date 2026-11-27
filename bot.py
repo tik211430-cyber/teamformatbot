@@ -57,14 +57,39 @@ _SIMPLE_MAP = str.maketrans({
     "🅼": "M", "🅽": "N", "🅾": "O", "🅿": "P", "🆀": "Q", "🆁": "R",
     "🆂": "S", "🆃": "T", "🆄": "U", "🆅": "V", "🆆": "W", "🆇": "X",
     "🆈": "Y", "🆉": "Z",
+    # Hangul filler - stylish naam e space er moto use hoy
+    "ㅤ": " ", "ᅠ": " ",
+    # Cherokee lookalikes (Latin er moto dekhte)
+    "Ꭺ": "A", "Ᏼ": "B", "Ꮯ": "C", "Ꭰ": "D", "Ꭼ": "E", "Ᏻ": "G",
+    "Ꮋ": "H", "Ꭵ": "I", "Ꮶ": "K", "Ꮮ": "L", "Ꮇ": "M", "Ꮑ": "N",
+    "Ꭴ": "O", "Ꮲ": "P", "Ꭱ": "R", "Ꮪ": "S", "Ꭲ": "T", "Ꮜ": "U",
+    "Ꮙ": "V", "Ꮤ": "W", "Ꮍ": "Y", "Ꮓ": "Z",
+    # Cyrillic homoglyphs (Latin er moto dekhte)
+    "А": "A", "В": "B", "Е": "E", "К": "K", "М": "M", "Н": "H",
+    "О": "O", "Р": "P", "С": "C", "Т": "T", "Х": "X", "У": "Y",
+    "Ј": "J", "Ѕ": "S", "І": "I", "Ї": "I", "Ґ": "G",
+    "а": "a", "е": "e", "о": "o", "р": "p", "с": "c", "х": "x",
+    "у": "y", "ј": "j", "ѕ": "s", "і": "i", "ї": "i", "ґ": "g",
+    "к": "k", "м": "m", "н": "h", "т": "t", "в": "b", "ԁ": "d",
+    "Ԑ": "E",
+    # Latin extended lookalikes
+    "Ɓ": "B", "ɓ": "b", "Ɔ": "O", "ɔ": "o", "Ɗ": "D", "ɗ": "d",
+    "Ɛ": "E", "ɛ": "e", "Ƒ": "F", "ƒ": "f", "Ɠ": "G", "ɠ": "g",
+    "Ɩ": "I", "ɩ": "i", "Ƙ": "K", "ƙ": "k", "Ɯ": "W", "ɯ": "w",
+    "Ɲ": "N", "ɲ": "n", "Ɵ": "O", "ɵ": "o", "Ƥ": "P", "ƥ": "p",
+    "Ʀ": "R", "Ƨ": "S", "ƨ": "s", "Ƭ": "T", "ƭ": "t", "Ʈ": "T",
+    "ʈ": "t", "Ʋ": "V", "ʋ": "v", "Ƴ": "Y", "ƴ": "y", "Ƶ": "Z",
+    "ƶ": "z", "ʑ": "z", "Ʒ": "E", "ʒ": "z", "ʂ": "s", "ʃ": "s",
+    "Ƞ": "N", "ȵ": "n",
 })
 
 
 def to_simple_text(value: str) -> str:
     """Stylish / fancy font er naam ke simple text e convert kore.
-    Jemon 𝐓𝐅𝐗, 𝕋𝔽𝕏, ＴＦＸ, ⓉⒻⓍ, ᴛꜰx, ꧁༺TFX༻꧂ -> TFX.
-    Shudhu letter, digit, space, -, . ar _ thake; sajano-r
-    chinno gula bad jay."""
+    Jemon 𝐓𝐅𝐗, 𝕋𝔽𝕏, ＴＦＸ, ⓉⒻⓍ, ᴛꜰx, ꧁༺TFX༻꧂ -> TFX,
+    ar Ᏼᴜɴɴʏ -> Bunny, Ɓᴀɴ—͞Ꭱᴀᴋɪʙ -> Ban Rakib.
+    Shudhu ASCII letter, digit, space, -, . ar _ thake; baki
+    sob sajano chinno space hoye jay ba bad jay."""
     if not value:
         return value
     text = value.translate(_SIMPLE_MAP)
@@ -73,8 +98,10 @@ def to_simple_text(value: str) -> str:
     for ch in text:
         if unicodedata.category(ch) == "Mn":
             continue
-        if ch.isalpha() or ch.isdigit() or ch in " -._":
+        if ch.isascii() and (ch.isalnum() or ch in " -._"):
             out.append(ch)
+        else:
+            out.append(" ")
     return re.sub(r"\s+", " ", "".join(out)).strip()
 
 
