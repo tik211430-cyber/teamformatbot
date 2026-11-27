@@ -46,7 +46,8 @@ START_TEXT = (
     "PLAYER NAME 4 : \n"
     "PLAYER NAME 5 : \n\n"
     "IGN / PLAYER — jekono label dilei cholbe, khali line skip hobe.\n\n"
-    "Banan vul holeo cholbe — TEAM / PLAYER / IGN banan vul likhleo bot dhore felbe, ar amader format ei sajabe."
+    "Banan vul holeo cholbe — TEAM / PLAYER / IGN banan vul likhleo bot dhore felbe, ar amader format ei sajabe.\n\n"
+    "Stylish font er naam dile simple text e convert kore dibe."
 )
 
 

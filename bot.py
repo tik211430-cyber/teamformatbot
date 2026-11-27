@@ -21,6 +21,7 @@ Rules:
 import os
 import re
 import difflib
+import unicodedata
 import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
@@ -32,6 +33,49 @@ TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 
 
 PAYMENT_LABELS = ("bkash", "nagad", "rocket", "payment", "contact", "phone", "mobile", "number")
+
+# Stylish font er character -> simple ASCII. NFKD nijei beshir vag
+# (bold / script / fraktur / double-struck / fullwidth / circled)
+# handle kore, kintu small caps, superscript ar negative-squared
+# gula ke age haat e map korte hoy.
+_SIMPLE_MAP = str.maketrans({
+    # small caps
+    "ᴀ": "a", "ʙ": "b", "ᴄ": "c", "ᴅ": "d", "ᴇ": "e", "ɢ": "g",
+    "ʜ": "h", "ɪ": "i", "ᴊ": "j", "ᴋ": "k", "ʟ": "l", "ᴍ": "m",
+    "ɴ": "n", "ᴏ": "o", "ᴘ": "p", "ʀ": "r", "ᴛ": "t", "ᴜ": "u",
+    "ᴠ": "v", "ᴡ": "w", "ʏ": "y", "ᴢ": "z", "ᴁ": "ae", "ꜰ": "f",
+    "ꜱ": "s",
+    # superscript / subscript (jegula NFKD dhore na)
+    "ᵃ": "a", "ᵇ": "b", "ᶜ": "c", "ᵈ": "d", "ᵉ": "e", "ᶠ": "f",
+    "ᵍ": "g", "ʰ": "h", "ⁱ": "i", "ʲ": "j", "ᵏ": "k", "ˡ": "l",
+    "ᵐ": "m", "ⁿ": "n", "ᵒ": "o", "ᵖ": "p", "ʳ": "r", "ˢ": "s",
+    "ᵗ": "t", "ᵘ": "u", "ᵛ": "v", "ʷ": "w", "ˣ": "x", "ʸ": "y",
+    "ᶻ": "z", "ₐ": "a", "ₑ": "e", "ₒ": "o", "ₓ": "x",
+    # negative squared letters
+    "🅰": "A", "🅱": "B", "🅲": "C", "🅳": "D", "🅴": "E", "🅵": "F",
+    "🅶": "G", "🅷": "H", "🅸": "I", "🅹": "J", "🅺": "K", "🅻": "L",
+    "🅼": "M", "🅽": "N", "🅾": "O", "🅿": "P", "🆀": "Q", "🆁": "R",
+    "🆂": "S", "🆃": "T", "🆄": "U", "🆅": "V", "🆆": "W", "🆇": "X",
+    "🆈": "Y", "🆉": "Z",
+})
+
+
+def to_simple_text(value: str) -> str:
+    """Stylish / fancy font er naam ke simple text e convert kore.
+    Jemon 𝐓𝐅𝐗, 𝕋𝔽𝕏, ＴＦＸ, ⓉⒻⓍ, ᴛꜰx, ꧁༺TFX༻꧂ -> TFX.
+    Shudhu letter, digit, space, -, . ar _ thake; sajano-r
+    chinno gula bad jay."""
+    if not value:
+        return value
+    text = value.translate(_SIMPLE_MAP)
+    text = unicodedata.normalize("NFKD", text)
+    out = []
+    for ch in text:
+        if unicodedata.category(ch) == "Mn":
+            continue
+        if ch.isalpha() or ch.isdigit() or ch in " -._":
+            out.append(ch)
+    return re.sub(r"\s+", " ", "".join(out)).strip()
 
 
 def _close(word: str, target: str, threshold: float = 0.7) -> bool:
@@ -212,16 +256,17 @@ def parse_teams(text: str):
 
 
 def format_teams(teams):
-    """Parsed teams -> user er deya format e text."""
+    """Parsed teams -> user er deya format e text.
+    Stylish naam thakle simple text e convert kore deya hoy."""
     if not teams:
         return ""
     out_lines = []
     for i, t in enumerate(teams, start=1):
-        out_lines.append(f"{i}. TEAM NAME : {t['team']}")
+        out_lines.append(f"{i}. TEAM NAME : {to_simple_text(t['team'])}")
         players = t["players"][:5]
         for j in range(1, 6):
             name = players[j - 1] if j - 1 < len(players) else ""
-            out_lines.append(f"PLAYER NAME {j} : {name}")
+            out_lines.append(f"PLAYER NAME {j} : {to_simple_text(name)}")
         out_lines.append("")  # team er majhe khali line
     return "\n".join(out_lines).rstrip() + "\n"
 
@@ -237,7 +282,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "PLAYER NAME 4 : \n"
         "PLAYER NAME 5 : \n\n"
         "IGN / PLAYER — jekono label dilei cholbe, khali line skip hobe.\n\n"
-        "Banan vul holeo cholbe — TEAM / PLAYER / IGN banan vul likhleo bot dhore felbe, ar amader format ei sajabe."
+        "Banan vul holeo cholbe — TEAM / PLAYER / IGN banan vul likhleo bot dhore felbe, ar amader format ei sajabe.\n\n"
+        "Stylish font er naam dile simple text e convert kore dibe."
     )
 
 
